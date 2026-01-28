@@ -2,54 +2,65 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Smart Bed - Professional Firebase System</title>
+    <title>Smart Bed - Full Firebase Sync System</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;700&display=swap" rel="stylesheet">
-    
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
     <style>
-        :root { --path-color: #000000; --floor: #f4f7f6; --wall: #2c3e50; --room-bg: #fff9db; }
+        :root { --path-color: #000000; --floor: #f4f7f6; --wall: #2c3e50; --room-bg: #fff9db; --danger: #d63031; }
         body { font-family: 'Prompt', sans-serif; background: #1a1a1a; color: #eee; display: flex; flex-direction: column; align-items: center; padding: 20px; }
         .map { width: 1150px; height: 720px; background: var(--floor); position: relative; border: 10px solid var(--wall); border-radius: 8px; }
-        
-        /* --- เส้นทางจราจร --- */
+        .ui-container { display: flex; gap: 20px; width: 1170px; margin-bottom: 20px; }
+        .panel { background: #2d3436; padding: 20px; border-radius: 12px; flex: 1; }
+        select, button { padding: 10px; border-radius: 5px; border: none; font-family: 'Prompt'; font-weight: bold; margin: 5px; }
+        button { cursor: pointer; }
+        .btn-start { background: #00b894; color: white; }
+        .btn-stop { background: var(--danger); color: white; width: 100%; font-size: 1.2rem; }
+        .manual-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 150px; margin-top: 10px; }
+        .m-btn { background: #636e72; color: white; padding: 10px; }
+        .bed { width: 45px; height: 75px; position: absolute; border-radius: 6px; z-index: 10; transition: all 1s linear; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .slot { position: absolute; width: 100px; height: 140px; border: 3px solid #2ecc71; background: rgba(46, 204, 113, 0.1); border-radius: 8px; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: #27ae60; transition: all 0.5s; }
+        .slot.occupied { border-color: #e74c3c; background: rgba(231, 76, 60, 0.2); color: #c0392b; }
         .path { position: absolute; background: var(--path-color); z-index: 1; }
         .v-main { width: 6px; height: 100%; left: 280px; top: 0; } 
         .h-mid { width: 800px; height: 6px; left: 280px; top: 320px; } 
         .st-exit-v { width: 6px; height: 100px; left: 80px; top: 150px; } 
         .st-exit-h { width: 200px; height: 6px; left: 80px; top: 250px; }
         .conn-room { height: 4px; width: 130px; left: 150px; top: 480px; } 
-
-        /* --- ซองจอด (Slots) --- */
         .bed-station { position: absolute; width: 180px; height: 150px; background: white; border: 4px solid var(--wall); left: 10px; top: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: black; z-index: 2; }
         .room { position: absolute; width: 140px; height: 160px; background: var(--room-bg); border: 3px solid #f1c40f; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #916110; border-radius: 5px; z-index: 2; left: 10px; top: 400px; }
-        
-        .slot { position: absolute; width: 100px; height: 140px; border: 3px solid #2ecc71; background: rgba(46, 204, 113, 0.1); border-radius: 8px; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: #27ae60; transition: all 0.5s; }
-        .slot.occupied { border-color: #e74c3c; background: rgba(231, 76, 60, 0.2); color: #c0392b; }
-
-        /* --- เตียง --- */
-        .bed { width: 45px; height: 75px; position: absolute; border-radius: 6px; z-index: 10; transition: all 1s linear; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-
-        .panel { background: #2d3436; padding: 20px; border-radius: 12px; display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end; }
-        select, button { padding: 10px; border-radius: 5px; border: none; font-family: 'Prompt'; font-weight: bold; }
-        button { background: #00b894; color: white; cursor: pointer; }
-        .status-sync { font-size: 12px; color: #aaa; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <div class="panel">
-        <div><label>เลือกเตียง:</label><br><select id="bedSelect"><option value="bed01">BED-01</option><option value="bed02">BED-02</option><option value="bed03">BED-03</option></select></div>
-        <div><label>เป้าหมาย:</label><br><select id="destLoc">
-            <option value="room101">ไป Room 101</option>
-            <option value="A1">ไปเตียง A1</option><option value="A2">ไปเตียง A2</option>
-            <option value="A4">ไปเตียง A4</option><option value="A5">ไปเตียง A5</option>
-            <option value="station">กลับ Bed Station</option>
-        </select></div>
-        <button onclick="executePath()">🚀 เริ่มภารกิจ</button>
+    <div class="ui-container">
+        <div class="panel">
+            <h3>🤖 Auto Control</h3>
+            <select id="bedSelect"><option value="bed01">BED-01</option><option value="bed02">BED-02</option><option value="bed03">BED-03</option></select>
+            <select id="destLoc">
+                <option value="room101">ไป Room 101</option>
+                <option value="A1">ไปเตียง A1</option><option value="A2">ไปเตียง A2</option>
+                <option value="A4">ไปเตียง A4</option><option value="A5">ไปเตียง A5</option>
+                <option value="station">กลับ Bed Station</option>
+            </select>
+            <button class="btn-start" onclick="executePath()">🚀 เริ่มภารกิจ</button>
+            <button class="btn-stop" id="stopBtn" onclick="toggleEmergency()">🚨 EMERGENCY STOP</button>
+        </div>
+
+        <div class="panel">
+            <h3>🎮 Manual Control</h3>
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <div class="manual-grid">
+                    <div></div><button class="m-btn" onclick="manualAction('up')">▲</button><div></div>
+                    <button class="m-btn" onclick="manualAction('left')">◀</button>
+                    <button class="m-btn" onclick="manualAction('down')">▼</button>
+                    <button class="m-btn" onclick="manualAction('right')">▶</button>
+                </div>
+                <div style="font-size: 0.8rem; color: #aaa;">*บังคับเตียงที่เลือกในช่อง Auto</div>
+            </div>
+        </div>
     </div>
-    <div class="status-sync">Firebase Status: <span id="db-status">Connecting...</span></div>
 
     <div class="map">
         <div class="bed-station">Bed Station</div>
@@ -58,18 +69,14 @@
         <div id="slotA5" class="slot" style="left: 650px; top: 40px;">A5</div>
         <div id="slotA1" class="slot" style="left: 400px; top: 450px;">A1</div>
         <div id="slotA2" class="slot" style="left: 650px; top: 450px;">A2</div>
-
-        <div class="path v-main"></div><div class="path h-mid"></div>
-        <div class="path st-exit-v"></div><div class="path st-exit-h"></div>
-        <div class="path conn-room"></div>
-
+        <div class="path v-main"></div><div class="path h-mid"></div><div class="path st-exit-v"></div><div class="path st-exit-h"></div><div class="path conn-room"></div>
         <div id="bed01" class="bed" style="background: #0984e3; left: 20px; top: 25px;">B1</div>
         <div id="bed02" class="bed" style="background: #6c5ce7; left: 75px; top: 25px;">B2</div>
         <div id="bed03" class="bed" style="background: #e84393; left: 130px; top: 25px;">B3</div>
     </div>
 
     <script>
-        // --- Firebase Configuration ---
+        // --- 1. Firebase Config ---
         const firebaseConfig = {
             apiKey: "AIzaSyDn5cYoLlkSXDVKVjrkOotSAOgktPTy9x8",
             authDomain: "smartbed-project-ba5e4.firebaseapp.com",
@@ -80,32 +87,93 @@
             appId: "1:727608152921:web:bab20a0ee4231b18c83248",
             measurementId: "G-BMF0X48R23"
         };
-
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        document.getElementById('db-status').innerText = "Connected ✅";
 
-        const homeX = { 'bed01': 20, 'bed02': 75, 'bed03': 130 };
-        const slotConfig = { 
-            A1: { x: 450, y: 480, isBottom: true },
-            A2: { x: 700, y: 480, isBottom: true },
-            A4: { x: 450, y: 100, isBottom: false },
-            A5: { x: 700, y: 100, isBottom: false }
+        let isEmergency = false;
+        let currentPos = {
+            bed01: { x: 20, y: 25, d: 0 },
+            bed02: { x: 75, y: 25, d: 0 },
+            bed03: { x: 130, y: 25, d: 0 }
         };
-
-        let currentStatus = { 'bed01': 'station', 'bed02': 'station', 'bed03': 'station' };
+        let currentStatus = { bed01: 'station', bed02: 'station', bed03: 'station' };
         let slotOccupancy = { A1: false, A2: false, A4: false, A5: false, room101: false };
 
-        // --- Firebase Listener: คอยฟังว่าที่ไหนว่างหรือเต็ม ---
-        db.ref('slots').on('value', (snapshot) => {
+        // --- 2. Real-time Listeners (เพิ่มเข้ามาเพื่อเชื่อมเว็บ) ---
+        // ซิงค์พิกัดเตียงทุกเครื่อง
+        db.ref('live_pos').on('value', (snapshot) => {
             const data = snapshot.val();
-            if(data) {
-                slotOccupancy = data;
-                Object.keys(data).forEach(loc => updateSlotUI(loc, data[loc]));
+            if (data) {
+                Object.keys(data).forEach(id => {
+                    currentPos[id] = data[id];
+                    updateBedUI(id);
+                });
             }
         });
 
+        // ซิงค์ปุ่ม Emergency ทุกเครื่อง
+        db.ref('system_status/emergency').on('value', (snapshot) => {
+            const remoteEmergency = snapshot.val();
+            if (remoteEmergency !== null && remoteEmergency !== isEmergency) {
+                isEmergency = remoteEmergency;
+                const btn = document.getElementById('stopBtn');
+                if (isEmergency) {
+                    btn.innerText = "⚡ RESET SYSTEM";
+                    btn.style.background = "#f1c40f";
+                } else {
+                    btn.innerText = "🚨 EMERGENCY STOP";
+                    btn.style.background = "var(--danger)";
+                }
+            }
+        });
+
+        // ฟังสถานะซองจอด
+        db.ref('slots').on('value', (snap) => {
+            const data = snap.val() || {};
+            slotOccupancy = data;
+            Object.keys(data).forEach(loc => {
+                const el = document.getElementById('slot' + loc);
+                if (el) data[loc] ? el.classList.add('occupied') : el.classList.remove('occupied');
+            });
+        });
+
+        // --- 3. Functions ---
+        function toggleEmergency() {
+            isEmergency = !isEmergency;
+            db.ref('system_status/emergency').set(isEmergency); // ส่งสถานะไป Firebase
+        }
+
+        function manualAction(dir) {
+            if (isEmergency) return alert("System Halted! Please reset emergency stop.");
+            const id = document.getElementById('bedSelect').value;
+            const step = 25;
+            if (dir === 'up') { currentPos[id].y -= step; currentPos[id].d = 0; }
+            if (dir === 'down') { currentPos[id].y += step; currentPos[id].d = 180; }
+            if (dir === 'left') { currentPos[id].x -= step; currentPos[id].d = -90; }
+            if (dir === 'right') { currentPos[id].x += step; currentPos[id].d = 90; }
+            db.ref(`live_pos/${id}`).set(currentPos[id]); // อัปเดตขึ้น Firebase
+        }
+
+        function move(id, x, y, deg) {
+            return new Promise(resolve => {
+                if (isEmergency) return;
+                // ส่งพิกัดใหม่ไปที่ Firebase เพื่อให้หน้าจออื่นขยับตาม
+                db.ref(`live_pos/${id}`).set({ x, y, d: deg });
+                setTimeout(resolve, 1600); // รอให้ Animation เล่นจบ (1s transition + buffer)
+            });
+        }
+
+        function updateBedUI(id) {
+            const el = document.getElementById(id);
+            if(el) {
+                el.style.left = currentPos[id].x + 'px';
+                el.style.top = currentPos[id].y + 'px';
+                el.style.transform = `rotate(${currentPos[id].d}deg)`;
+            }
+        }
+
         async function executePath() {
+            if (isEmergency) return;
             const id = document.getElementById('bedSelect').value;
             const start = currentStatus[id];
             const dest = document.getElementById('destLoc').value;
@@ -116,93 +184,41 @@
                 return;
             }
 
-            // อัปเดต Firebase: ออกจากที่เก่า
             if (start !== 'station') db.ref(`slots/${start}`).set(false);
 
-            // เริ่มเคลื่อนที่ (Logic เดิมที่แก้ไขไม่ให้หมุน 360)
+            const slotX = { A1: 450, A2: 700, A4: 450, A5: 700 };
+            const isBottom = (s) => (s === 'A1' || s === 'A2');
+
             if (start.startsWith('A')) {
-                await exitFromSlotToMain(id, start);
-                if (dest === 'room101') await fromMainToRoom(id);
-                else if (dest === 'station') await fromMainToStation(id);
+                const sX = slotX[start];
+                await move(id, sX, isBottom(start) ? 480 : 100, 90);
+                await move(id, sX, 320, 0);
+                await move(id, 258, 320, -90);
+                
+                if (dest === 'room101') {
+                    await move(id, 258, 480, -180);
+                    await move(id, 55, 480, -270);
+                } else if (dest === 'station') {
+                    await move(id, 258, 212, 0);
+                    await move(id, 80, 212, -90);
+                    await move(id, id==='bed01'?20:id==='bed02'?75:130, 25, 0);
+                }
             } else if (start === 'station') {
-                if (dest === 'room101') await stationToRoom(id);
-                else if (dest.startsWith('A')) await stationToSlots(id, dest);
-            } else if (start === 'room101') {
-                if (dest === 'station') await roomToStation(id);
-                else if (dest.startsWith('A')) await roomToSlots(id, dest);
+                await move(id, currentPos[id].x, 212, 180);
+                await move(id, 258, 212, 90);
+                if (dest === 'room101') {
+                    await move(id, 258, 480, 180);
+                    await move(id, 55, 480, 270);
+                } else if (dest.startsWith('A')) {
+                    await move(id, 258, 320, 180);
+                    await move(id, slotX[dest], 320, 90);
+                    if(isBottom(dest)) { await move(id, slotX[dest], 480, 180); await move(id, slotX[dest]-50, 480, 270); }
+                    else { await move(id, slotX[dest], 100, 0); await move(id, slotX[dest]-50, 100, -90); }
+                }
             }
 
-            // อัปเดต Firebase: ถึงที่ใหม่
             currentStatus[id] = dest;
             if (dest !== 'station') db.ref(`slots/${dest}`).set(true);
-        }
-
-        function updateSlotUI(loc, occupied) {
-            const el = document.getElementById('slot' + loc);
-            if (el) occupied ? el.classList.add('occupied') : el.classList.remove('occupied');
-        }
-
-        function move(id, x, y, deg) {
-            return new Promise(resolve => {
-                const el = document.getElementById(id);
-                el.style.transform = `rotate(${deg}deg)`;
-                setTimeout(() => {
-                    el.style.left = x + 'px'; el.style.top = y + 'px';
-                    setTimeout(resolve, 1200);
-                }, 400);
-            });
-        }
-
-        // --- Navigation Logic (No Spin 360) ---
-        async function exitFromSlotToMain(id, slot) {
-            const conf = slotConfig[slot];
-            await move(id, conf.x, (conf.isBottom ? 480 : 100), 90); 
-            await move(id, conf.x, 320, 0);   
-            await move(id, 258, 320, -90);   
-        }
-
-        async function fromMainToRoom(id) {
-            await move(id, 258, 480, -180); 
-            await move(id, 55, 480, -270); 
-        }
-
-        async function fromMainToStation(id) {
-            await move(id, 258, 212, 0); 
-            await move(id, 80, 212, -90); 
-            await move(id, homeX[id], 25, 0);
-        }
-
-        async function stationToRoom(id) {
-            await move(id, homeX[id], 212, 180); 
-            await move(id, 258, 212, 90); 
-            await move(id, 258, 480, 180); 
-            await move(id, 55, 480, 270); 
-        }
-
-        async function roomToStation(id) {
-            await move(id, 258, 480, 90); 
-            await move(id, 258, 212, 0); 
-            await move(id, 80, 212, -90); 
-            await move(id, homeX[id], 25, 0);
-        }
-
-        async function stationToSlots(id, slot) {
-            const conf = slotConfig[slot];
-            await move(id, homeX[id], 212, 180); 
-            await move(id, 258, 212, 90); 
-            await move(id, 258, 320, 180); 
-            await move(id, conf.x, 320, 90); 
-            if(conf.isBottom) { await move(id, conf.x, 480, 180); await move(id, conf.x-50, 480, 270); }
-            else { await move(id, conf.x, 100, 0); await move(id, conf.x-50, 100, -90); }
-        }
-
-        async function roomToSlots(id, slot) {
-            const conf = slotConfig[slot];
-            await move(id, 258, 480, 90); 
-            await move(id, 258, 320, 0); 
-            await move(id, conf.x, 320, 90); 
-            if(conf.isBottom) { await move(id, conf.x, 480, 180); await move(id, conf.x-50, 480, 270); }
-            else { await move(id, conf.x, 100, 0); await move(id, conf.x-50, 100, -90); }
         }
     </script>
 </body>
