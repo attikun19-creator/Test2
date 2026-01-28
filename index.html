@@ -2,41 +2,52 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Smart Bed - Final Sync System</title>
+    <title>Smart Bed - AGV Precision System</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;700&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
     <style>
-        :root { --path-color: #000000; --floor: #f4f7f6; --wall: #2c3e50; --room-bg: #fff9db; --danger: #d63031; --success: #00b894; }
+        :root { --path-color: #000000; --floor: #f4f7f6; --wall: #2c3e50; --success: #00b894; --danger: #d63031; }
         body { font-family: 'Prompt', sans-serif; background: #1a1a1a; color: #eee; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        
         .ui-container { display: flex; gap: 15px; width: 1170px; margin-bottom: 20px; }
         .panel { background: #2d3436; padding: 20px; border-radius: 12px; flex: 1; }
-        .log-panel { height: 150px; overflow-y: auto; background: #1e272e; padding: 10px; border-radius: 8px; font-size: 0.85rem; border: 1px solid #3d3d3d; }
+        
         .map { width: 1150px; height: 720px; background: var(--floor); position: relative; border: 10px solid var(--wall); border-radius: 8px; }
-        .bed { width: 45px; height: 75px; position: absolute; border-radius: 6px; z-index: 10; transition: all 1s linear; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-        .slot { position: absolute; width: 100px; height: 140px; border: 3px solid var(--success); background: rgba(0, 184, 148, 0.1); border-radius: 8px; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: var(--success); transition: all 0.5s; }
+        
+        /* ปรับ Transition แยกกัน: หันหน้าใช้ 0.5s / เคลื่อนที่ใช้ 1.5s */
+        .bed { 
+            width: 45px; height: 75px; position: absolute; border-radius: 6px; z-index: 10;
+            display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: left 1.5s linear, top 1.5s linear, transform 0.6s ease-in-out; 
+        }
+
+        .slot { position: absolute; width: 100px; height: 140px; border: 3px solid var(--success); background: rgba(0, 184, 148, 0.1); border-radius: 8px; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: var(--success); }
         .slot.occupied { border-color: var(--danger); background: rgba(214, 48, 49, 0.2); color: var(--danger); }
+        
         .path { position: absolute; background: var(--path-color); z-index: 1; }
         .v-main { width: 6px; height: 100%; left: 280px; top: 0; } 
         .h-mid { width: 800px; height: 6px; left: 280px; top: 320px; } 
         .st-exit-v { width: 6px; height: 100px; left: 80px; top: 150px; } 
         .st-exit-h { width: 200px; height: 6px; left: 80px; top: 250px; }
         .conn-room { height: 4px; width: 130px; left: 150px; top: 480px; } 
+
         .bed-station { position: absolute; width: 180px; height: 150px; background: white; border: 4px solid var(--wall); left: 10px; top: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: black; z-index: 2; }
-        .room { position: absolute; width: 140px; height: 160px; background: var(--room-bg); border: 3px solid #f1c40f; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #916110; border-radius: 5px; z-index: 2; left: 10px; top: 400px; }
-        select, button { padding: 10px; border-radius: 5px; border: none; font-family: 'Prompt'; font-weight: bold; margin: 5px; }
-        button { cursor: pointer; }
+        .room { position: absolute; width: 140px; height: 160px; background: #fff9db; border: 3px solid #f1c40f; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #916110; border-radius: 5px; z-index: 2; left: 10px; top: 400px; }
+
+        select, button { padding: 10px; border-radius: 5px; border: none; font-family: 'Prompt'; font-weight: bold; margin: 5px; cursor: pointer; }
         .btn-start { background: var(--success); color: white; width: 100%; }
-        .btn-stop { background: var(--danger); color: white; width: 100%; }
         .btn-reset { background: #e67e22; color: white; width: 100%; }
+        .log-panel { height: 150px; overflow-y: auto; background: #1e272e; padding: 10px; border-radius: 8px; font-size: 0.85rem; }
     </style>
 </head>
 <body>
 
     <div class="ui-container">
         <div class="panel" style="text-align: center; background: #000; max-width: 200px;">
-            <div id="clock" style="font-size: 1.8rem; font-weight: bold; color: var(--success);">00:00:00</div>
+            <div id="clock" style="font-size: 1.8rem; color: var(--success); font-weight: bold;">00:00:00</div>
             <div id="date" style="font-size: 0.8rem; color: #888;">-- / -- / ----</div>
             <button class="btn-reset" onclick="resetAllBeds()">🔄 RESET ALL</button>
         </div>
@@ -51,7 +62,6 @@
                 <option value="station">Station</option>
             </select>
             <button class="btn-start" onclick="executePath()">🚀 เริ่มภารกิจ</button>
-            <button class="btn-stop" id="stopBtn" onclick="toggleEmergency()">🚨 STOP</button>
         </div>
 
         <div class="panel">
@@ -67,10 +77,13 @@
         <div id="slotA5" class="slot" style="left: 650px; top: 40px;">A5</div>
         <div id="slotA1" class="slot" style="left: 400px; top: 450px;">A1</div>
         <div id="slotA2" class="slot" style="left: 650px; top: 450px;">A2</div>
-        <div class="path v-main"></div><div class="path h-mid"></div><div class="path st-exit-v"></div><div class="path st-exit-h"></div><div class="path conn-room"></div>
-        <div id="bed01" class="bed" style="background: #0984e3; left: 20px; top: 25px;">B1</div>
-        <div id="bed02" class="bed" style="background: #6c5ce7; left: 75px; top: 25px;">B2</div>
-        <div id="bed03" class="bed" style="background: #e84393; left: 130px; top: 25px;">B3</div>
+
+        <div class="path v-main"></div><div class="path h-mid"></div>
+        <div class="path st-exit-v"></div><div class="path st-exit-h"></div><div class="path conn-room"></div>
+
+        <div id="bed01" class="bed" style="background: #0984e3;">B1</div>
+        <div id="bed02" class="bed" style="background: #6c5ce7;">B2</div>
+        <div id="bed03" class="bed" style="background: #e84393;">B3</div>
     </div>
 
     <script>
@@ -84,99 +97,31 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        let isEmergency = false;
-        let currentPos = { bed01:{x:20,y:25,d:0}, bed02:{x:75,y:25,d:0}, bed03:{x:130,y:25,d:0} };
+        let currentPos = { bed01:{x:30,y:40,d:0}, bed02:{x:85,y:40,d:0}, bed03:{x:140,y:40,d:0} };
         let currentStatus = { bed01:'station', bed02:'station', bed03:'station' };
         let slotOccupancy = { A1:false, A2:false, A4:false, A5:false, room101:false };
 
-        // --- 1. การเชื่อมต่อให้ตรงกับรูป (Sync Listeners) ---
-        
-        // ดึงสถานะเตียงจาก Firebase (ตามชื่อ commands ในรูป)
-        db.ref('commands/bedStatus').on('value', (snap) => {
-            const status = snap.val();
-            if (status && typeof status === 'object') currentStatus = status;
-        });
-
-        // ดึงพิกัดเตียงจาก Firebase (ตามชื่อ beds ในรูป)
-        db.ref('beds').on('value', (snap) => {
+        // --- Listeners ---
+        db.ref('beds').on('value', snap => {
             const data = snap.val();
-            if (data) {
-                Object.keys(data).forEach(id => {
-                    if (data[id].x !== undefined) {
-                        currentPos[id] = data[id];
-                        updateBedUI(id);
-                    }
-                });
-            }
+            if(data) Object.keys(data).forEach(id => { currentPos[id] = data[id]; updateBedUI(id); });
         });
 
-        // ซิงค์ปุ่ม STOP
-        db.ref('commands/emergency').on('value', (snap) => {
-            isEmergency = snap.val();
-            const btn = document.getElementById('stopBtn');
-            btn.innerText = isEmergency ? "⚡ RESET" : "🚨 STOP";
-            btn.style.background = isEmergency ? "#f1c40f" : "var(--danger)";
+        db.ref('commands/bedStatus').on('value', snap => {
+            const status = snap.val();
+            if(status) currentStatus = status;
         });
 
-        // ซิงค์ช่องจอด
-        db.ref('fleet').on('value', (snap) => {
+        db.ref('fleet').on('value', snap => {
             const data = snap.val() || {};
             slotOccupancy = data;
             Object.keys(slotOccupancy).forEach(loc => {
-                const el = document.getElementById('slot' + loc);
-                if (el) data[loc] ? el.classList.add('occupied') : el.classList.remove('occupied');
+                const el = document.getElementById('slot'+loc);
+                if(el) data[loc] ? el.classList.add('occupied') : el.classList.remove('occupied');
             });
         });
 
-        // --- ระบบบันทึก Log ---
-        db.ref('logs').limitToLast(10).on('value', (snap) => {
-            const logs = snap.val();
-            const logDiv = document.getElementById('activityLog');
-            logDiv.innerHTML = "";
-            if (logs) Object.values(logs).reverse().forEach(l => {
-                logDiv.innerHTML += `<div><span style="color:var(--success)">[${l.time}]</span> ${l.msg}</div>`;
-            });
-        });
-
-        // --- ระบบเวลา ---
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleTimeString('th-TH', { hour12: false });
-            document.getElementById('date').innerText = now.toLocaleDateString('th-TH');
-        }
-        setInterval(updateClock, 1000);
-
-        // --- ฟังก์ชันหลัก ---
-        function addLog(msg) {
-            const time = new Date().toLocaleTimeString('th-TH', { hour12: false });
-            db.ref('logs').push({ time, msg });
-        }
-
-        function toggleEmergency() {
-            isEmergency = !isEmergency;
-            db.ref('commands/emergency').set(isEmergency);
-            addLog(isEmergency ? "🛑 EMERGENCY STOP" : "✅ READY");
-        }
-
-        async function resetAllBeds() {
-            if(!confirm("Reset ทั้งหมด?")) return;
-            const homePos = { bed01:{x:20,y:25,d:0}, bed02:{x:75,y:25,d:0}, bed03:{x:130,y:25,d:0} };
-            const homeStatus = { bed01:'station', bed02:'station', bed03:'station' };
-            await db.ref('beds').set(homePos);
-            await db.ref('commands/bedStatus').set(homeStatus);
-            await db.ref('fleet').set({ A1:false, A2:false, A4:false, A5:false, room101:false });
-            db.ref('commands/emergency').set(false);
-            addLog("🔄 SYSTEM REBOOTED");
-        }
-
-        function move(id, x, y, deg) {
-            return new Promise(resolve => {
-                if (isEmergency) return;
-                db.ref(`beds/${id}`).update({ x: x, y: y, d: deg });
-                setTimeout(resolve, 1500);
-            });
-        }
-
+        // --- Core Functions ---
         function updateBedUI(id) {
             const el = document.getElementById(id);
             if(el) {
@@ -186,81 +131,96 @@
             }
         }
 
-     async function executePath() {
-    if (isEmergency) return;
-    const id = document.getElementById('bedSelect').value;
-    const dest = document.getElementById('destLoc').value;
-    const start = currentStatus[id] || 'station';
-
-    // 1. ตรวจสอบเงื่อนไขพื้นฐาน
-    if (start === dest) {
-        alert(`เตียง ${id} อยู่ที่ ${dest} อยู่แล้วครับ`);
-        return;
-    }
-    if (dest !== 'station' && slotOccupancy[dest]) {
-        alert("ช่องจอดไม่ว่าง! กรุณาเลือกจุดอื่น"); 
-        return;
-    }
-
-    addLog(`🚀 ${id} เริ่มเคลื่อนที่: ${start} -> ${dest}`);
-    
-    // เคลียร์สถานะซองเดิมใน Firebase
-    if (start !== 'station') db.ref(`fleet/${start}`).set(false);
-
-    // พิกัดกึ่งกลางเส้น (Nodes)
-    const MAIN_V_LINE = 258; // เส้นตั้งหลัก
-    const MAIN_H_LINE = 320; // เส้นนอนหลัก (ตรงกลางแยก)
-    const slotX = { A1: 425, A2: 675, A4: 425, A5: 675 };
-
-    // --- CASE A: ถ้าจะไปที่จอด (A1, A2, A4, A5, Room101) ---
-    if (dest !== 'station') {
-        // ออกจาก Station มาที่ถนนตั้ง
-        await move(id, currentPos[id].x, 215, 180); 
-        await move(id, MAIN_V_LINE, 215, 90); 
-
-        if (dest === 'room101') {
-            await move(id, MAIN_V_LINE, 445, 180); 
-            await move(id, 55, 445, 270); 
-        } 
-        else {
-            // ไป Slot A ต่างๆ (ต้องผ่านแยกหลักก่อน)
-            await move(id, MAIN_V_LINE, MAIN_H_LINE, 180); 
-            await move(id, slotX[dest], MAIN_H_LINE, 90); 
+        // ฟังก์ชัน Move แบบพิเศษ: หันหน้าก่อนเดินเพื่อป้องกันหมุน 360
+        async function move(id, x, y, newDeg) {
+            const currentDeg = currentPos[id].d;
             
-            if (dest === 'A1' || dest === 'A2') {
-                await move(id, slotX[dest], 450, 180); // เลี้ยวเข้าซองล่าง
-            } else {
-                await move(id, slotX[dest], 100, 0);   // เลี้ยวเข้าซองบน
+            // 1. ถ้าองศาเปลี่ยน ให้หยุดนิ่งๆ แล้วหันหน้าก่อน (0.6s)
+            if (currentDeg !== newDeg) {
+                await db.ref(`beds/${id}`).update({ d: newDeg });
+                await new Promise(r => setTimeout(r, 600)); 
             }
+            
+            // 2. เคลื่อนที่ไปยังพิกัด (1.5s)
+            await db.ref(`beds/${id}`).update({ x: x, y: y });
+            await new Promise(r => setTimeout(r, 1550));
         }
-    } 
-    // --- CASE B: ถ้าจะสั่งให้กลับ STATION ---
-    else {
-        if (start === 'room101') {
-            await move(id, MAIN_V_LINE, 445, 90);
-        } 
-        else if (start.startsWith('A')) {
-            // ออกจากซองมาที่ถนนนอนก่อน
-            const exitY = (start === 'A1' || start === 'A2') ? MAIN_H_LINE : MAIN_H_LINE;
-            await move(id, slotX[start], MAIN_H_LINE, (start === 'A1' || start === 'A2') ? 0 : 180);
-            await move(id, MAIN_V_LINE, MAIN_H_LINE, 270); // กลับมาที่สี่แยกหลัก
-        }
-        
-        // เดินเข้าทางเชื่อม Station
-        await move(id, MAIN_V_LINE, 215, 0); // ขึ้นไปหาทางเข้า
-        await move(id, 80, 215, 270);        // เลี้ยวซ้ายเข้าสถานี
-        
-        // เข้าที่จอดประจำเครื่อง
-        const homeX = id === 'bed01' ? 30 : id === 'bed02' ? 85 : 140;
-        await move(id, homeX, 40, 0); // จอดนิ่งๆ ในกรอบ
-    }
 
-    // --- บันทึกสถานะหลังจบภารกิจ ---
-    currentStatus[id] = dest;
-    db.ref('commands/bedStatus').update({ [id]: dest }); // บันทึกสถานะแยกคัน
-    if (dest !== 'station') db.ref(`fleet/${dest}`).set(true);
-    addLog(`📍 ${id} ถึงที่หมาย ${dest} แล้ว`);
-}
+        async function resetAllBeds() {
+            const home = { bed01:{x:30,y:40,d:0}, bed02:{x:85,y:40,d:0}, bed03:{x:140,y:40,d:0} };
+            await db.ref('beds').set(home);
+            await db.ref('commands/bedStatus').set({ bed01:'station', bed02:'station', bed03:'station' });
+            await db.ref('fleet').set({ A1:false, A2:false, A4:false, A5:false, room101:false });
+            addLog("🔄 SYSTEM RESET");
+        }
+
+        async function executePath() {
+            const id = document.getElementById('bedSelect').value;
+            const dest = document.getElementById('destLoc').value;
+            const start = currentStatus[id] || 'station';
+
+            if (start === dest) return;
+            if (dest !== 'station' && slotOccupancy[dest]) { alert("Slot Busy!"); return; }
+
+            addLog(`🚀 ${id}: ${start} -> ${dest}`);
+            if (start !== 'station') db.ref(`fleet/${start}`).set(false);
+
+            const MAIN_V = 258; // กึ่งกลางเส้นตั้ง
+            const MAIN_H = 320; // กึ่งกลางเส้นนอน
+            const slotX = { A1:425, A2:675, A4:425, A5:675 };
+
+            // ขาไป
+            if (dest !== 'station') {
+                await move(id, currentPos[id].x, 215, 180); // ลงมาทางเชื่อม
+                await move(id, MAIN_V, 215, 90);           // ไปถนนหลัก
+                
+                if (dest === 'room101') {
+                    await move(id, MAIN_V, 445, 180);      // ลงไประดับห้อง
+                    await move(id, 55, 445, 270);          // เข้าห้อง
+                } else {
+                    await move(id, MAIN_V, MAIN_H, 180);   // ไปสี่แยก
+                    await move(id, slotX[dest], MAIN_H, 90); // วิ่งตามถนนนอน
+                    if (dest === 'A1' || dest === 'A2') await move(id, slotX[dest], 450, 180);
+                    else await move(id, slotX[dest], 100, 0);
+                }
+            } 
+            // ขากลับ Station
+            else {
+                if (start === 'room101') {
+                    await move(id, MAIN_V, 445, 90);
+                } else {
+                    await move(id, slotX[start], MAIN_H, (start==='A1'||start==='A2')?0:180);
+                    await move(id, MAIN_V, MAIN_H, 270);
+                }
+                await move(id, MAIN_V, 215, 0);            // ขึ้นไปทางเชื่อม
+                await move(id, 80, 215, 270);              // เลี้ยวเข้าสถานี
+                const hX = id==='bed01'?30:id==='bed02'?85:140;
+                await move(id, hX, 40, 0);                 // เข้าที่จอด
+            }
+
+            currentStatus[id] = dest;
+            db.ref('commands/bedStatus').update({ [id]: dest });
+            if (dest !== 'station') db.ref(`fleet/${dest}`).set(true);
+            addLog(`📍 ${id} arrived at ${dest}`);
+        }
+
+        // Clock & Log System
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString('th-TH',{hour12:false});
+            db.ref('logs').push({ time, msg });
+        }
+        db.ref('logs').limitToLast(10).on('value', snap => {
+            const logDiv = document.getElementById('activityLog');
+            logDiv.innerHTML = "";
+            if(snap.val()) Object.values(snap.val()).reverse().forEach(l => {
+                logDiv.innerHTML += `<div><span style="color:var(--success)">[${l.time}]</span> ${l.msg}</div>`;
+            });
+        });
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('th-TH',{hour12:false});
+            document.getElementById('date').innerText = now.toLocaleDateString('th-TH');
+        }, 1000);
     </script>
 </body>
 </html>
