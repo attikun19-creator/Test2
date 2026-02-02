@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart AGV - Advanced Graph Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+
+    <style>
+        :root { 
+            --bg-dark: #0f172a; --panel-bg: rgba(30, 41, 59, 0.9);
+            --accent: #38bdf8; --path-color: #000000; --floor: #f8fafc; 
+            --danger: #ef4444; --success: #22c55e; --bed-color: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        }
+
+        body { font-family: 'Prompt', sans-serif; background: var(--bg-dark); color: #f1f5f9; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        
+        /* Auth Styles - แยกหน้า Login/Register ให้ต่างกัน */
+        #authOverlay { position: fixed; inset: 0; background: var(--bg-dark); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+        .auth-card { width: 350px; padding: 30px; border-radius: 20px; transition: 0.3s; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+        .login-mode { background: #1e293b; border: 2px solid var(--accent); }
+        .register-mode { background: #0f172a; border: 2px solid var(--success); }
+        .auth-card h2 { text-align: center; margin-bottom: 20px; }
+        .auth-card input { width: 92%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; }
+        .auth-link { font-size: 0.8rem; color: #94a3b8; cursor: pointer; text-decoration: underline; margin: 5px; display: inline-block; }
+        
+        /* Map & Infrastructure */
+        .ui-container { display: grid; grid-template-columns: 240px 1fr 300px; gap: 20px; width: 1200px; margin-bottom: 20px; }
+        .panel { background: var(--panel-bg); backdrop-filter: blur(10px); padding: 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); }
+        .map-container { padding: 15px; background: #cbd5e1; border-radius: 20px; }
+        .map { width: 1150px; height: 620px; background: var(--floor); position: relative; border-radius: 12px; overflow: hidden; border: 2px solid #94a3b8; }
+        .path { position: absolute; background: var(--path-color); z-index: 1; }
+        
+        /* AGV Design (เคลื่อนที่แบบนุ่มนวลจากไฟล์ต้นฉบับ) */
+        .bed { 
+            width: 50px; height: 80px; position: absolute; border-radius: 6px; z-index: 10; 
+            display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;
+            transition: left 1.5s cubic-bezier(0.4, 0, 0.2, 1), top 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.0s ease-in-out;
+            background: var(--bed-color); border: 2px solid rgba(255,255,255,0.4); box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transform: translate(-50%, -50%);
+        }
+
+        .bed-station { position: absolute; width: 180px; height: 130px; background: #fff; border: 3px solid #1e293b; left: 100px; top: 35px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #1e293b; z-index: 2; border-radius: 8px; }
+        .room { position: absolute; width: 130px; height: 150px; background: #fefce8; border: 3px solid #eab308; left: 100px; top: 430px; z-index: 2; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #854d0e; }
+        .slot { position: absolute; width: 100px; height: 130px; border: 2px dashed #94a3b8; z-index: 2; display: flex; align-items: center; justify-content: center; font-weight: 600; border-radius: 8px; color: #64748b; }
+        .slot.occupied { border-style: solid; border-color: var(--danger); background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+        
+        button { padding: 10px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; }
+        .btn-go { background: linear-gradient(135deg, #0ea5e9, #2563eb); color: white; width: 100%; }
+        .btn-reset { width: 1150px; background: #334155; color: white; padding: 15px; border-radius: 0 0 8px 8px; margin-top: -5px; }
+        .btn-reset:hover { background: var(--danger); }
+    </style>
+</head>
+<body>
+
+    <div id="authOverlay">
+        <div id="authCard" class="auth-card login-mode">
+            <h2 id="authTitle" style="color: var(--accent);">AGV LOGIN</h2>
+            <input type="email" id="email" placeholder="อีเมล">
+            <input type="password" id="password" placeholder="รหัสผ่าน">
+            <button class="btn-go" id="authBtn" onclick="handleAuth()">เข้าสู่ระบบ</button>
+            <div style="text-align: center; margin-top: 15px;">
+                <span class="auth-link" onclick="toggleAuthMode()">สมัครสมาชิก</span>
+                <span class="auth-link" onclick="handleForgotPassword()">ลืมรหัสผ่าน?</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="ui-container">
+        <div class="panel" style="text-align: center;">
+            <div id="clock" style="font-size: 1.8rem; font-weight: 600;">00:00:00</div>
+            <div id="date" style="color: var(--accent);">--/--/--</div>
+            <button onclick="firebase.auth().signOut()" style="background:none; color:var(--danger); cursor:pointer;">ออกจากระบบ</button>
+        </div>
+
+        <div class="panel">
+            <div style="display: flex; gap: 10px;">
+                <select id="bedSelect" style="flex:1; padding:10px; border-radius:8px; background:#0f172a; color:white; border:1px solid #334155;">
+                    <option value="bed01">UNIT-01 (B1)</option>
+                    <option value="bed02">UNIT-02 (B2)</option>
+                    <option value="bed03">UNIT-03 (B3)</option>
+                </select>
+                <select id="destLoc" style="flex:1; padding:10px; border-radius:8px; background:#0f172a; color:white; border:1px solid #334155;">
+                    <option value="station">Main Station</option>
+                    <option value="A4">A4</option><option value="A5">A5</option><option value="A6">A6</option>
+                    <option value="A1">A1</option><option value="A2">A2</option><option value="A3">A3</option>
+                    <option value="ROOM_101">Room 101</option>
+                </select>
+                <button class="btn-go" onclick="executePath()" style="width:120px;">เริ่มเคลื่อนที่</button>
+            </div>
+        </div>
+
+        <div class="panel"><div id="activityLog" style="height:100px; overflow-y:auto; font-size:0.75rem;"></div></div>
+    </div>
+
+    <div class="map-container">
+        <div class="map" id="mapFrame">
+            <div class="bed-station">STATION</div>
+            <div id="slotROOM_101" class="room">ROOM 101</div>
+            <div id="slotA4" class="slot" style="left: 420px; top: 55px;">A4</div>
+            <div id="slotA5" class="slot" style="left: 600px; top: 55px;">A5</div>
+            <div id="slotA6" class="slot" style="left: 780px; top: 55px;">A6</div>
+            <div id="slotA1" class="slot" style="left: 420px; top: 460px;">A1</div>
+            <div id="slotA2" class="slot" style="left: 600px; top: 460px;">A2</div>
+            <div id="slotA3" class="slot" style="left: 780px; top: 480px;">A3</div>
+
+            <div class="path" style="width: 8px; height: 100%; left: 330px; top: 0;"></div>
+            <div class="path" style="width: 550px; height: 8px; left: 330px; top: 325px;"></div>
+            <div class="path" style="width: 6px; height: 180px; left: 195px; top: 120px;"></div>
+            <div class="path" style="width: 140px; height: 6px; left: 195px; top: 300px;"></div>
+            <div class="path" style="width: 100px; height: 6px; left: 230px; top: 510px;"></div>
+            <div class="path" style="width:4px; height:120px; left:472px; top:190px;"></div>
+            <div class="path" style="width:4px; height:120px; left:652px; top:190px;"></div>
+            <div class="path" style="width:4px; height:120px; left:832px; top:190px;"></div>
+            <div class="path" style="width:4px; height:120px; left:472px; top:330px;"></div>
+            <div class="path" style="width:4px; height:120px; left:652px; top:330px;"></div>
+            <div class="path" style="width:4px; height:150px; left:832px; top:330px;"></div>
+
+            <div id="bed01" class="bed">B1</div>
+            <div id="bed02" class="bed">B2</div>
+            <div id="bed03" class="bed">B3</div>
+        </div>
+        <button class="btn-reset" onclick="resetFleetToStation()">🔄 RESET SYSTEM & RETURN ALL UNITS TO STATION (WALK PATH)</button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDn5cYoLlkSXDVKVjrkOotSAOgktPTy9x8",
+            authDomain: "smartbed-project-ba5e4.firebaseapp.com",
+            databaseURL: "https://smartbed-project-ba5e4-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "smartbed-project-ba5e4",
+            appId: "1:727608152921:web:bab20a0ee4231b18c83248"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const auth = firebase.auth();
+
+        // --- AUTH SYSTEM ---
+        let isLoginMode = true;
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            const card = document.getElementById('authCard');
+            document.getElementById('authTitle').innerText = isLoginMode ? "AGV LOGIN" : "REGISTER";
+            document.getElementById('authBtn').innerText = isLoginMode ? "เข้าสู่ระบบ" : "สมัครสมาชิก";
+            card.className = isLoginMode ? "auth-card login-mode" : "auth-card register-mode";
+        }
+        function handleAuth() {
+            const email = document.getElementById('email').value, pass = document.getElementById('password').value;
+            if(!email || !pass) return alert("กรุณากรอกข้อมูล");
+            if(isLoginMode) auth.signInWithEmailAndPassword(email, pass).catch(err => alert(err.message));
+            else auth.createUserWithEmailAndPassword(email, pass).then(() => toggleAuthMode()).catch(err => alert(err.message));
+        }
+        function handleForgotPassword() {
+            const email = document.getElementById('email').value;
+            if(!email) return alert("กรุณากรอกอีเมลเพื่อรับลิงก์รีเซ็ตรหัสผ่าน");
+            auth.sendPasswordResetEmail(email).then(() => alert("ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว")).catch(err => alert(err.message));
+        }
+        auth.onAuthStateChanged(user => {
+            document.getElementById('authOverlay').style.display = user ? 'none' : 'flex';
+            if(user) { db.ref('fleet').set(null); addLog("Login Success - Fleet Cleared"); }
+        });
+
+        // --- NAVIGATION (จากไฟล์ต้นฉบับของคุณ) ---
+        const nodeCoords = {
+            'ST_B1': { x: 120, y: 65, d: 0 }, 'ST_B2': { x: 180, y: 65, d: 0 }, 'ST_B3': { x: 240, y: 65, d: 0 },
+            'ST_EXIT': { x: 195, y: 65, d: 180 }, 'ST_JUNC': { x: 195, y: 300, d: 90 },
+            'J1': { x: 330, y: 300, d: 90 }, 'J2': { x: 330, y: 325, d: 90 },
+            'J3': { x: 472, y: 325, d: 90 }, 'J4': { x: 652, y: 325, d: 90 }, 'J5': { x: 832, y: 325, d: 90 },
+            'J_ROOM': { x: 330, y: 510, d: 180 }, 'ROOM_101': { x: 230, y: 510, d: 270 },
+            'A4': { x: 472, y: 65, d: 0 }, 'A5': { x: 652, y: 65, d: 0 }, 'A6': { x: 832, y: 65, d: 0 },
+            'A1': { x: 472, y: 465, d: 180 }, 'A2': { x: 652, y: 465, d: 180 }, 'A3': { x: 832, y: 465, d: 180 }
+        };
+        const mapGraph = {
+            'ST_B1': ['ST_EXIT'], 'ST_B2': ['ST_EXIT'], 'ST_B3': ['ST_EXIT'],
+            'ST_EXIT': ['ST_B1', 'ST_B2', 'ST_B3', 'ST_JUNC'], 'ST_JUNC': ['ST_EXIT', 'J1'],
+            'J1': ['ST_JUNC', 'J2'], 'J2': ['J1', 'J3', 'J_ROOM'],
+            'J3': ['J2', 'J4', 'A1', 'A4'], 'J4': ['J3', 'J5', 'A2', 'A5'], 'J5': ['J4', 'A3', 'A6'],
+            'J_ROOM': ['J2', 'ROOM_101'], 'ROOM_101': ['J_ROOM'],
+            'A1': ['J3'], 'A4': ['J3'], 'A2': ['J4'], 'A5': ['J4'], 'A3': ['J5'], 'A6': ['J5']
+        };
+
+        let currentPos = {}, currentStatus = { bed01:'ST_B1', bed02:'ST_B2', bed03:'ST_B3' };
+        let isMoving = { bed01: false, bed02: false, bed03: false };
+
+        function findShortestPath(start, target) {
+            let queue = [[start]], visited = new Set();
+            while (queue.length > 0) {
+                let path = queue.shift(), node = path[path.length - 1];
+                if (node === target) return path;
+                if (!visited.has(node)) {
+                    visited.add(node);
+                    (mapGraph[node] || []).forEach(neighbor => queue.push([...path, neighbor]));
+                }
+            } return null;
+        }
+
+        async function move(id, nodeName) {
+            const pos = nodeCoords[nodeName];
+            if (currentPos[id] && Math.abs(currentPos[id].d - pos.d) > 15) {
+                await db.ref(`beds/${id}`).update({ d: pos.d });
+                await new Promise(r => setTimeout(r, 800)); // หมุนตัวก่อนเดิน
+            }
+            await db.ref(`beds/${id}`).update({ x: pos.x, y: pos.y, d: pos.d });
+            await new Promise(r => setTimeout(r, 1600)); // เวลาเดินระหว่าง Node
+        }
+
+        async function executePath(targetId = null, targetDest = null) {
+            const id = targetId || document.getElementById('bedSelect').value;
+            const destRaw = targetDest || document.getElementById('destLoc').value;
+            const targetNode = destRaw === 'station' ? `ST_B${id.replace('bed0', '')}` : destRaw;
+            const startNode = currentStatus[id];
+
+            if (isMoving[id] || startNode === targetNode) return;
+            const path = findShortestPath(startNode, targetNode);
+            if (!path) return addLog("❌ No Path Found");
+
+            isMoving[id] = true;
+            if (!startNode.startsWith('ST_')) db.ref(`fleet/${startNode}`).set(null);
+
+            for (let i = 1; i < path.length; i++) {
+                await move(id, path[i]);
+                currentStatus[id] = path[i];
+            }
+            if (!targetNode.startsWith('ST_')) db.ref(`fleet/${targetNode}`).set(true);
+            isMoving[id] = false;
+        }
+
+        async function resetFleetToStation() {
+            if(!confirm("ยืนยันการนำ AGV ทั้งหมดกลับสถานี?")) return;
+            db.ref('fleet').set(null); 
+            for (const id of ['bed01', 'bed02', 'bed03']) {
+                if (!currentStatus[id].startsWith('ST_')) {
+                    executePath(id, 'station');
+                    await new Promise(r => setTimeout(r, 2000)); 
+                }
+            }
+        }
+
+        // Sync UI
+        db.ref('beds').on('value', snap => {
+            const data = snap.val();
+            if(data) Object.keys(data).forEach(id => {
+                currentPos[id] = data[id];
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.left = data[id].x + 'px'; el.style.top = data[id].y + 'px';
+                    el.style.transform = `translate(-50%, -50%) rotate(${data[id].d}deg)`;
+                }
+            });
+        });
+
+        db.ref('fleet').on('value', snap => {
+            const occ = snap.val() || {};
+            Object.keys(nodeCoords).forEach(s => {
+                const el = document.getElementById('slot'+s);
+                if(el) occ[s] ? el.classList.add('occupied') : el.classList.remove('occupied');
+            });
+        });
+
+        function addLog(msg) {
+            const div = document.getElementById('activityLog');
+            div.innerHTML = `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>` + div.innerHTML;
+        }
+
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+            document.getElementById('date').innerText = new Date().toLocaleDateString('th-TH');
+        }, 1000);
+    </script>
+</body>
+</html>
